@@ -5,9 +5,9 @@ import networkx as nx
 
 
 def search_maximum_clique(graph):
-    result = set()
-    expand(graph, set(), degree_sort(graph, graph.nodes), result)
-    return result
+    maximum_clique = []
+    expand(graph, [], degree_sort(graph, graph.nodes), maximum_clique)
+    return maximum_clique
 
 
 def expand(graph, candidate, neighbors, best):
@@ -15,15 +15,15 @@ def expand(graph, candidate, neighbors, best):
     for i, colored_neighbor in zip(reversed(range(len(colored_nodes))), reversed(colored_nodes)):
         if len(candidate) + colors[i] > len(best):
             node = colored_neighbor
-            candidate.add(node)
+            candidate.append(node)
             new_neighbors = [n for n in neighbors if n in graph.neighbors(node)]
             if not new_neighbors:
                 if len(candidate) > len(best):
                     best.clear()
-                    best.update(candidate)
+                    best.extend(candidate)
             else:
                 expand(graph, candidate, new_neighbors, best)
-            candidate.remove(node)
+            candidate.pop()
             colored_nodes.pop()
             neighbors.remove(node)
 
@@ -57,7 +57,8 @@ def degree_sort(graph, nodes):
 
 def main():
     graph_path = pathlib.Path(pathlib.Path.cwd(), 'graphs')
-    graph = nx.algorithms.operators.unary.complement(nx.read_edgelist(graph_path.joinpath('graph2.txt')))
+    # graph = nx.algorithms.operators.unary.complement(nx.read_edgelist(graph_path.joinpath('graph2.txt')))
+    graph = nx.read_edgelist(graph_path.joinpath('graph3.txt'))
 
     x = time.time()
     clique = search_maximum_clique(graph)
