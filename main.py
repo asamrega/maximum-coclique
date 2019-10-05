@@ -1,22 +1,23 @@
 import pathlib
 import time
+from collections import deque
 
 import networkx as nx
 
 
 def search_maximum_clique(graph):
-    maximum_clique = []
-    expand(graph, [], degree_sort(graph, graph.nodes), maximum_clique)
+    maximum_clique = deque()
+    expand(graph, deque(), degree_sort(graph), maximum_clique)
     return maximum_clique
 
 
 def expand(graph, candidate, neighbors, best):
     colors, colored_nodes = colourise(graph, neighbors)
-    for i, colored_neighbor in zip(reversed(range(len(colored_nodes))), reversed(colored_nodes)):
-        if len(candidate) + colors[i] > len(best):
-            node = colored_neighbor
+    for _ in range(len(colored_nodes)):
+        if len(candidate) + colors.pop() > len(best):
+            node = colored_nodes.pop()
             candidate.append(node)
-            new_neighbors = [n for n in neighbors if n in graph.neighbors(node)]
+            new_neighbors = deque(n for n in neighbors if graph.has_edge(node, n))
             if not new_neighbors:
                 if len(candidate) > len(best):
                     best.clear()
@@ -24,7 +25,6 @@ def expand(graph, candidate, neighbors, best):
             else:
                 expand(graph, candidate, new_neighbors, best)
             candidate.pop()
-            colored_nodes.pop()
             neighbors.remove(node)
 
 
@@ -41,8 +41,8 @@ def colourise(graph, neighbors):
         else:
             coloured_buckets.append([node])
 
-    colors = []
-    colored_nodes = []
+    colors = deque()
+    colored_nodes = deque()
     for i, bucket in enumerate(coloured_buckets, start=1):
         for node in bucket:
             colored_nodes.append(node)
@@ -51,14 +51,14 @@ def colourise(graph, neighbors):
     return colors, colored_nodes
 
 
-def degree_sort(graph, nodes):
-    return sorted(nodes, key=graph.degree, reverse=True)
+def degree_sort(graph):
+    return deque(sorted(graph.nodes, key=graph.degree, reverse=True))
 
 
 def main():
     graph_path = pathlib.Path(pathlib.Path.cwd(), 'graphs')
     # graph = nx.algorithms.operators.unary.complement(nx.read_edgelist(graph_path.joinpath('graph2.txt')))
-    graph = nx.read_edgelist(graph_path.joinpath('graph3.txt'))
+    graph = nx.read_edgelist(graph_path.joinpath('graph3.txt'), nodetype=int)
 
     x = time.time()
     clique = search_maximum_clique(graph)
