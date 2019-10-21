@@ -14,18 +14,19 @@ def search_maximum_clique(graph):
 def expand(graph, candidate, neighbors, best):
     colors, colored_nodes = colourise(graph, neighbors)
     for _ in range(len(colored_nodes)):
-        if len(candidate) + colors.pop() > len(best):
-            node = colored_nodes.pop()
-            candidate.append(node)
-            new_neighbors = deque(n for n in neighbors if graph.has_edge(node, n))
-            if not new_neighbors:
-                if len(candidate) > len(best):
-                    best.clear()
-                    best.extend(candidate)
-            else:
-                expand(graph, candidate, new_neighbors, best)
-            candidate.pop()
-            neighbors.remove(node)
+        if len(candidate) + colors.pop() <= len(best):
+            return
+        node = colored_nodes.pop()
+        candidate.append(node)
+        new_neighbors = deque(n for n in neighbors if graph.has_edge(node, n))
+        if not new_neighbors:
+            if len(candidate) > len(best):
+                best.clear()
+                best.extend(candidate)
+        else:
+            expand(graph, candidate, new_neighbors, best)
+        candidate.pop()
+        neighbors.remove(node)
 
 
 def colourise(graph, neighbors):
