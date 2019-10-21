@@ -1,10 +1,24 @@
 import ctypes
 import pathlib
+import time
 from array import array
 import multiprocessing as mp
 from collections import deque
 
 import networkx as nx
+
+
+class MaxCliqueResult:
+    def __init__(self, max_size):
+        self.members = mp.Array(ctypes.c_uint, max_size)
+        self.size = mp.Value(ctypes.c_uint, 0)
+
+    def merge(self, other):
+        other_size = len(other)
+        if other_size > self.size.value:
+            self.size.value = other_size
+            for i in range(other_size):
+                self.members[i] = other[i]
 
 
 class WorkQueue:
@@ -22,6 +36,12 @@ class WorkQueue:
                 self._cond.wait()
 
             self._queue.put(item)
+            self._cond.notify_all()
+
+    def enqueue(self, *item):
+        with self._cond:
+            self._queue.put(item)
+            self._want_donations.value = False
             self._cond.notify_all()
 
     def dequeue_blocking(self, item):
@@ -62,43 +82,30 @@ class WorkQueue:
         return self._donations_possible and self._want_donations.value
 
 
-class MaxCliqueResult:
-    def __init__(self, max_size):
-        self.members = mp.Array(ctypes.c_uint, max_size)
-        self.size = mp.Value(ctypes.c_uint, 0)
-
-    def merge(self, other):
-        other_size = len(other)
-        if other_size > self.size.value:
-            self.size.value = other_size
-            for i in range(other_size):
-                self.members[i] = other[i]
-
-
 def populator(graph, global_result, global_best, work_queue, sorted_nodes):
     result = array('I')
     candidate = deque()
     neighbors = sorted_nodes.copy()
     expand(graph, work_queue, None, candidate, neighbors, result, global_best)
-    # work_queue.initial_producer_done()
+    work_queue.initial_producer_done()
     global_result.merge(result)
-    print([i for i in global_result.members])
+    # print([i for i in global_result.members])
 
 
 def worker(graph, donation_queue, global_result, global_best):
     result = array('I')
-    name = mp.current_process().name
+    # name = mp.current_process().name
     # print(f'Start worker {name!r}')
     while True:
         item = []
         if not donation_queue.dequeue_blocking(item):
             break
 
-        print(item)
+        # print(item)
         if item[2] <= global_best.value:
             continue
-        # expand(graph, None, donation_queue, item[0], item[1], result, global_best)
-        # global_result.merge(result)
+        expand(graph, None, donation_queue, item[0], item[1], result, global_best)
+        global_result.merge(result)
 
 
 def search_maximum_clique(graph):
@@ -118,11 +125,14 @@ def search_maximum_clique(graph):
     for w in workers:
         w.join()
 
+    print(global_best.value)
+    print([global_result.members[i] for i in range(global_best.value)])
+
 
 def expand(graph, work_queue, donation_queue, candidate, neighbors, result, global_best):
     chose_to_donate = False
     colors, colored_nodes = colourise(graph, neighbors)
-    print(colored_nodes)
+    # print(colored_nodes)
     for _ in range(len(colored_nodes)):
         bound = colors.pop()
         candidate_size = len(candidate)
@@ -143,11 +153,10 @@ def expand(graph, work_queue, donation_queue, candidate, neighbors, result, glob
             should_expand = True
 
             if work_queue and candidate_size == 1:
-                work_queue.enqueue_blocking(candidate, new_neighbors, candidate_size+bound, size=6)  # TODO: check arguments
-                # print(f'Enqueue: {candidate}, {new_neighbors}, {candidate_size+bound}')  # TODO: check arguments
+                work_queue.enqueue_blocking(candidate.copy(), new_neighbors, candidate_size+bound, size=6)
                 should_expand = False
             elif donation_queue and (chose_to_donate or donation_queue.want_donations()):
-                # donation_queue.enqueue(candidate, new_neighbors, candidate_size+bound)   # TODO: check arguments
+                donation_queue.enqueue(candidate.copy(), new_neighbors, candidate_size+bound)
                 should_expand = False
                 chose_to_donate = True
 
@@ -190,9 +199,11 @@ def main():
 
     graph_path = pathlib.Path(pathlib.Path.cwd(), 'graphs')
     # graph = nx.algorithms.operators.unary.complement(nx.read_edgelist(graph_path.joinpath('graph2.txt')))
-    graph = nx.read_edgelist(graph_path.joinpath('graph1.txt'), nodetype=int)
+    graph = nx.read_edgelist(graph_path.joinpath('graph3.txt'), nodetype=int)
 
+    x = time.time()
     search_maximum_clique(graph)
+    print(time.time() - x)
 
 
 if __name__ == '__main__':
